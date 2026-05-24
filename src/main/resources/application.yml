@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: FinanceManager
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+server:
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        secure: true
+        same-site: strict
+
+app:
+  cors:
+    allowed-origins: http://localhost:5173
