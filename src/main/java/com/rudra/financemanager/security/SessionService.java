@@ -1,6 +1,6 @@
 package com.rudra.financemanager.security;
 
-import com.rudra.financemanager.entities.UserEntitiy;
+import com.rudra.financemanager.entities.UserEntity;
 import com.rudra.financemanager.exceptions.UnauthorizedException;
 import com.rudra.financemanager.repositories.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,7 +16,7 @@ public class SessionService {
 
     private final UserRepository userRepository;
 
-    public UserEntitiy getCurrentUser() {
+    public UserEntity getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if(authentication == null || !authentication.isAuthenticated()) {

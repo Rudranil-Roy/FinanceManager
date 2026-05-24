@@ -1,14 +1,10 @@
 package com.rudra.financemanager.entities;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @Entity
 @Table(name = "users")
@@ -16,7 +12,8 @@ import java.util.UUID;
 @NoArgsConstructor
 @Getter
 @Setter
-public class UserEntitiy {
+@Builder
+public class UserEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

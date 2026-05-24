@@ -1,12 +1,18 @@
 package com.rudra.financemanager.entities;
 
 import jakarta.persistence.*;
+import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
 @Table(name = "savingsGoals")
+@AllArgsConstructor
+@NoArgsConstructor
+@Getter
+@Setter
+@Builder
 public class SavingsGoalEntity {
 
     @Id
@@ -23,5 +29,5 @@ public class SavingsGoalEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    private UserEntitiy user;
+    private UserEntity user;
 }

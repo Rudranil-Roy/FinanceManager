@@ -1,13 +1,13 @@
 package com.rudra.financemanager.repositories;
 
-import com.rudra.financemanager.entities.UserEntitiy;
+import com.rudra.financemanager.entities.UserEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
 
-public interface UserRepository extends JpaRepository<UserEntitiy, Long> {
+public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
-    Optional<UserEntitiy> findByUsername(String username);
+    Optional<UserEntity> findByUsername(String username);
 
     boolean existsByUsername(String username);
 }

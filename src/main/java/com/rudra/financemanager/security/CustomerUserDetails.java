@@ -1,6 +1,6 @@
 package com.rudra.financemanager.security;
 
-import com.rudra.financemanager.entities.UserEntitiy;
+import com.rudra.financemanager.entities.UserEntity;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.security.core.GrantedAuthority;
@@ -13,7 +13,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CustomerUserDetails implements UserDetails {
 
-    private final UserEntitiy userEntity;
+    private final UserEntity userEntity;
 
     public Long getId() {
         return userEntity.getId();
