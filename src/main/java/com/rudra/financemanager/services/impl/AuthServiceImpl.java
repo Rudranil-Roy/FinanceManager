@@ -23,6 +23,10 @@ import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Implementation of {@link AuthService}.
+ * Orchestrates business logic for user account registration, credentials checking, and sessions.
+ */
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
@@ -37,6 +41,15 @@ public class AuthServiceImpl implements AuthService {
     private final SecurityContextRepository securityContextRepository =
             new HttpSessionSecurityContextRepository();
 
+    /**
+     * Registers a new user account.
+     * Validates that the username (email) is not already registered.
+     * Password is encoded using the configured {@link PasswordEncoder}.
+     *
+     * @param registerRequest DTO containing register parameters.
+     * @return AuthResponse containing details of the registered user.
+     * @throws ConflictException if a user with the same email already exists.
+     */
     @Override
     @Transactional
     public AuthResponse register(final RegisterRequest registerRequest) {
@@ -59,6 +72,14 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
+    /**
+     * Authenticates a user's credentials against the AuthenticationManager and stores the
+     * resulting security context into the active session repository.
+     *
+     * @param loginRequest       DTO containing user credentials.
+     * @param request The current HttpServletRequest context.
+     * @return AuthResponse indicating login outcome.
+     */
     @Override
     @Transactional(readOnly = true)
     public AuthResponse login(final LoginRequest loginRequest, final HttpServletRequest request) {
@@ -80,6 +101,12 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
+    /**
+     * Terminates the user's HTTP session and wipes the Spring Security context.
+     *
+     * @param request The active HTTP request.
+     * @return ApiResponse detailing logout outcome.
+     */
     @Override
     public ApiResponse logout(final HttpServletRequest request) {
         final HttpSession session = request.getSession(false);

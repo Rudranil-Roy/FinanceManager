@@ -1,6 +1,6 @@
 # Personal Finance Manager API
 
-This backend service allows users to securely track their income, expenses, and savings goals, manage custom categories, and generate detailed financial reports.
+This backend api service allows users to securely track their income, expenses, and savings goals, manage custom categories, and generate detailed financial reports.
 
 ## 🚀 Tech Stack
 

@@ -14,12 +14,26 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 
+/**
+ * Spring Security configuration class.
+ * Sets up session-based authentication, CSRF, CORS, authorization request matchers,
+ * and configures standard logout behaviors.
+ */
 @Configuration
 @RequiredArgsConstructor
 public class SecurityConfig {
 
     private final CustomUserDetailsService customUserDetailsService;
 
+    /**
+     * Configures the main HTTP security filter chain.
+     * Sets up stateless-friendly cookie/session behaviors, permits access to public endpoints (register/login),
+     * and requires authentication for all other API resources.
+     *
+     * @param http The HttpSecurity builder.
+     * @return The constructed SecurityFilterChain.
+     * @throws Exception if security filter configuration fails.
+     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -54,10 +68,16 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Configures and registers the {@link AuthenticationManager} bean.
+     * Used in custom auth flows (like Login) to authenticate user credentials.
+     *
+     * @param configuration The Spring AuthenticationConfiguration.
+     * @return The AuthenticationManager.
+     * @throws Exception if configuration retrieval fails.
+     */
     @Bean
     public AuthenticationManager authenticationManagerBean(AuthenticationConfiguration configuration) throws Exception {
         return configuration.getAuthenticationManager();
     }
-
-
 }

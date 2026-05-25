@@ -22,6 +22,11 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 
+/**
+ * Implementation of {@link SavingsGoalService}.
+ * Executes business operations to manage user savings targets and dynamically calculate savings
+ * progress percentages based on historical transaction net savings.
+ */
 @Service
 @RequiredArgsConstructor
 public class SavingsGoalServiceImpl implements SavingsGoalService {
@@ -31,6 +36,15 @@ public class SavingsGoalServiceImpl implements SavingsGoalService {
     private final SessionService sessionService;
     private final Clock clock;
 
+    /**
+     * Creates a new savings goal for the current authenticated user.
+     * Enforces start dates cannot be in the future, target dates must be in the future,
+     * and target amounts must be positive.
+     *
+     * @param request DTO containing parameters for the new savings goal.
+     * @return GoalResponse detailed DTO.
+     * @throws BadRequestException if parameter validations fail.
+     */
     @Override
     @Transactional
     public GoalResponse create(final CreateGoalRequest request) {
@@ -44,7 +58,6 @@ public class SavingsGoalServiceImpl implements SavingsGoalService {
         }
 
         final LocalDate today = LocalDate.now(clock);
-        // Determine the actual start date to use
         final LocalDate effectiveStartDate = request.getStartDate() != null ? request.getStartDate() : today;
 
         if (effectiveStartDate.isAfter(today)) {
@@ -65,6 +78,11 @@ public class SavingsGoalServiceImpl implements SavingsGoalService {
         return toResponse(savingsGoalRepository.save(goal));
     }
 
+    /**
+     * Retrieves all savings goals belonging to the current user, ordered by ID descending.
+     *
+     * @return List of GoalResponse DTOs.
+     */
     @Override
     @Transactional(readOnly = true)
     public List<GoalResponse> getAll() {
@@ -75,12 +93,27 @@ public class SavingsGoalServiceImpl implements SavingsGoalService {
                 .toList();
     }
 
+    /**
+     * Retrieves details of a specific savings goal by its unique ID.
+     * Validates that the goal belongs to the current user.
+     *
+     * @param id The identifier of the savings goal.
+     * @return GoalResponse detailed DTO.
+     */
     @Override
     @Transactional(readOnly = true)
     public GoalResponse getById(final Long id) {
         return toResponse(getOwnedGoal(id));
     }
 
+    /**
+     * Updates an existing savings goal's target amount and/or target deadline date.
+     *
+     * @param id      The identifier of the savings goal to update.
+     * @param request DTO containing updated goal parameters.
+     * @return GoalResponse detailed DTO.
+     * @throws BadRequestException if parameter updates are invalid (e.g. negative amount).
+     */
     @Override
     @Transactional
     public GoalResponse update(final Long id, final UpdateGoalRequest request) {
@@ -104,6 +137,11 @@ public class SavingsGoalServiceImpl implements SavingsGoalService {
         return toResponse(savingsGoalRepository.save(goal));
     }
 
+    /**
+     * Deletes a savings goal by its unique ID.
+     *
+     * @param id The identifier of the savings goal to delete.
+     */
     @Override
     @Transactional
     public void delete(final Long id) {
@@ -111,7 +149,14 @@ public class SavingsGoalServiceImpl implements SavingsGoalService {
         savingsGoalRepository.delete(goal);
     }
 
-
+    /**
+     * Retrieves a savings goal by ID, asserting ownership by the current user.
+     *
+     * @param id The savings goal ID.
+     * @return The verified SavingsGoalEntity.
+     * @throws ResourceNotFoundException if the goal is not found.
+     * @throws ForbiddenException        if the user does not own the goal.
+     */
     private SavingsGoalEntity getOwnedGoal(final Long id) {
         final UserEntity currentUser = sessionService.getCurrentUser();
 
@@ -125,6 +170,13 @@ public class SavingsGoalServiceImpl implements SavingsGoalService {
         return goal;
     }
 
+    /**
+     * Maps a {@link SavingsGoalEntity} to {@link GoalResponse}, calculating progress.
+     * Computes the remaining amount and percentage from the target amount and progress savings.
+     *
+     * @param goal The savings goal.
+     * @return Constructed GoalResponse.
+     */
     private GoalResponse toResponse(final SavingsGoalEntity goal) {
         final BigDecimal currentProgress = calculateCurrentProgress(goal);
 
@@ -157,6 +209,12 @@ public class SavingsGoalServiceImpl implements SavingsGoalService {
         );
     }
 
+    /**
+     * Computes a savings goal's progress by calculating net savings in the database.
+     *
+     * @param goal The savings goal.
+     * @return Summed net savings.
+     */
     private BigDecimal calculateCurrentProgress(final SavingsGoalEntity goal) {
         final LocalDate today = LocalDate.now(clock);
 
@@ -164,7 +222,7 @@ public class SavingsGoalServiceImpl implements SavingsGoalService {
                 goal.getUser(),
                 goal.getStartDate(),
                 today
-        );
+            );
 
         return netSavings != null ? netSavings : BigDecimal.ZERO;
     }

@@ -18,6 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+/**
+ * Implementation of {@link CategoryService}.
+ * Executes business logic for managing, validating, creating, and deleting financial categories.
+ */
 @Service
 @RequiredArgsConstructor
 public class CategoryServiceImpl implements CategoryService {
@@ -26,6 +30,12 @@ public class CategoryServiceImpl implements CategoryService {
     private final TransactionRepository transactionRepository;
     private final SessionService sessionService;
 
+    /**
+     * Retrieves all categories accessible to the current user.
+     * Consolidates system default categories and the user's personal custom categories.
+     *
+     * @return List of accessible CategoryResponse DTOs.
+     */
     @Override
     @Transactional(readOnly = true)
     public List<CategoryResponse> getAll() {
@@ -37,6 +47,15 @@ public class CategoryServiceImpl implements CategoryService {
                 .toList();
     }
 
+    /**
+     * Creates a new custom category for the current user.
+     * Ensures the category name is unique within the user's accessible namespace.
+     *
+     * @param request DTO containing parameters for the new category.
+     * @return CategoryResponse detailed DTO.
+     * @throws BadRequestException if the category name is null or blank.
+     * @throws ConflictException   if the category name already exists.
+     */
     @Override
     @Transactional
     public CategoryResponse create(final CreateCategoryRequest request) {
@@ -62,6 +81,17 @@ public class CategoryServiceImpl implements CategoryService {
         return toResponse(categoryRepository.save(category));
     }
 
+    /**
+     * Deletes a custom category by its name.
+     * Validates that the category belongs to the current user, is custom, and is not
+     * currently referenced by any existing transactions.
+     *
+     * @param name Name of the category to be deleted.
+     * @throws BadRequestException       if the category name is null, blank, or is a default category.
+     * @throws ResourceNotFoundException if the category does not exist.
+     * @throws ForbiddenException        if the category belongs to another user.
+     * @throws ConflictException         if the category is in use by transactions.
+     */
     @Override
     @Transactional
     public void deleteByName(final String name) {
@@ -89,6 +119,12 @@ public class CategoryServiceImpl implements CategoryService {
         categoryRepository.delete(category);
     }
 
+    /**
+     * Maps a {@link CategoryEntity} to a {@link CategoryResponse}.
+     *
+     * @param category The CategoryEntity.
+     * @return The CategoryResponse.
+     */
     private CategoryResponse toResponse(final CategoryEntity category) {
         return new CategoryResponse(
                 category.getId(),

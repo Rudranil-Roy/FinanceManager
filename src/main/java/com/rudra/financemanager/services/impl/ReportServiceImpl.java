@@ -21,6 +21,11 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+/**
+ * Implementation of {@link ReportService}.
+ * Executes calculations for monthly and yearly reports by fetching and aggregating
+ * user transactions in-memory and via database-level helpers.
+ */
 @Service
 @RequiredArgsConstructor
 public class ReportServiceImpl implements ReportService {
@@ -28,6 +33,14 @@ public class ReportServiceImpl implements ReportService {
     private final TransactionRepository transactionRepository;
     private final SessionService sessionService;
 
+    /**
+     * Generates a monthly financial report containing aggregated incomes and expenses.
+     *
+     * @param year  The year of the report.
+     * @param month The month of the report (1 to 12).
+     * @return MonthlyReportResponse containing detailed metrics.
+     * @throws BadRequestException if the month is out of valid bounds (1 to 12).
+     */
     @Override
     @Transactional(readOnly = true)
     public MonthlyReportResponse getMonthlyReport(final int year, final int month) {
@@ -40,7 +53,6 @@ public class ReportServiceImpl implements ReportService {
         final LocalDate start = yearMonth.atDay(1);
         final LocalDate end = yearMonth.atEndOfMonth();
 
-
         final List<TransactionEntity> transactions = transactionRepository
                 .findAllWithFilters(currentUser, start, end, null);
 
@@ -51,13 +63,18 @@ public class ReportServiceImpl implements ReportService {
         return new MonthlyReportResponse(month, year, totalIncome, totalExpenses, netSavings);
     }
 
+    /**
+     * Generates a yearly financial report containing aggregated incomes and expenses.
+     *
+     * @param year The year of the report.
+     * @return YearlyReportResponse containing consolidated metrics.
+     */
     @Override
     @Transactional(readOnly = true)
     public YearlyReportResponse getYearlyReport(final int year) {
         final UserEntity currentUser = sessionService.getCurrentUser();
         final LocalDate start = LocalDate.of(year, 1, 1);
         final LocalDate end = LocalDate.of(year, 12, 31);
-
 
         final List<TransactionEntity> transactions = transactionRepository
                 .findAllWithFilters(currentUser, start, end, null);
@@ -69,6 +86,14 @@ public class ReportServiceImpl implements ReportService {
         return new YearlyReportResponse(year, totalIncome, totalExpenses, netSavings);
     }
 
+    /**
+     * Helper to group transactions by category name and sum their values for the given type.
+     * Uses a {@link TreeMap} to ensure the resulting map has alphabetically sorted category keys.
+     *
+     * @param transactions List of transaction entities to aggregate.
+     * @param type         The transaction type (INCOME or EXPENSE) to filter.
+     * @return Sorted map of category names to their respective aggregated values.
+     */
     private Map<String, BigDecimal> aggregateByCategory(final List<TransactionEntity> transactions, final TransactionTypeEnum type) {
         return transactions.stream()
                 .filter(tx -> tx.getCategory().getType() == type)
@@ -79,6 +104,12 @@ public class ReportServiceImpl implements ReportService {
                 ));
     }
 
+    /**
+     * Calculates total net savings (Total Income - Total Expenses) from a list of transactions.
+     *
+     * @param transactions List of transactions.
+     * @return Total net savings.
+     */
     private BigDecimal calculateNetSavings(final List<TransactionEntity> transactions) {
         BigDecimal total = BigDecimal.ZERO;
 
