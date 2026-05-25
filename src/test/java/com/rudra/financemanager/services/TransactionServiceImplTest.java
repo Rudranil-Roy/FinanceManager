@@ -7,6 +7,7 @@ import com.rudra.financemanager.entities.CategoryEntity;
 import com.rudra.financemanager.entities.TransactionEntity;
 import com.rudra.financemanager.entities.TransactionTypeEnum;
 import com.rudra.financemanager.entities.UserEntity;
+import com.rudra.financemanager.exceptions.BadRequestException;
 import com.rudra.financemanager.exceptions.ForbiddenException;
 import com.rudra.financemanager.exceptions.ResourceNotFoundException;
 import com.rudra.financemanager.repositories.CategoryRepository;
@@ -21,6 +22,7 @@ import org.mockito.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -68,7 +70,11 @@ class TransactionServiceImplTest {
         request.setDescription("January Salary");
 
         when(sessionService.getCurrentUser()).thenReturn(currentUser);
-        when(categoryRepository.findByUserIsNull()).thenReturn(List.of(salaryCategory, foodCategory));
+
+        // Updated: Mocking the direct database call instead of Stream.concat
+        when(categoryRepository.findAccessibleCategoryByName("Salary", currentUser))
+                .thenReturn(Optional.of(salaryCategory));
+
         when(transactionRepository.save(any(TransactionEntity.class))).thenAnswer(invocation -> {
             TransactionEntity t = invocation.getArgument(0);
             t.setId(1L);
@@ -94,17 +100,15 @@ class TransactionServiceImplTest {
         tx1.setUser(currentUser);
         tx1.setCategory(salaryCategory);
 
-        TransactionEntity tx2 = new TransactionEntity();
-        tx2.setId(2L);
-        tx2.setAmount(new BigDecimal("300.00"));
-        tx2.setDate(LocalDate.of(2024, 1, 20));
-        tx2.setDescription("Food");
-        tx2.setUser(currentUser);
-        tx2.setCategory(foodCategory);
-
         when(sessionService.getCurrentUser()).thenReturn(currentUser);
-        when(categoryRepository.findById(10L)).thenReturn(java.util.Optional.of(salaryCategory));
-        when(transactionRepository.findByUserOrderByDateDesc(currentUser)).thenReturn(List.of(tx1, tx2));
+        when(categoryRepository.findById(10L)).thenReturn(Optional.of(salaryCategory));
+
+        when(transactionRepository.findAllWithFilters(
+                eq(currentUser),
+                eq(LocalDate.of(2024, 1, 1)),
+                eq(LocalDate.of(2024, 1, 31)),
+                eq(10L)
+        )).thenReturn(List.of(tx1));
 
         var result = transactionService.getAll(
                 LocalDate.of(2024, 1, 1),
@@ -131,7 +135,7 @@ class TransactionServiceImplTest {
         request.setDescription("New");
 
         when(sessionService.getCurrentUser()).thenReturn(currentUser);
-        when(transactionRepository.findById(1L)).thenReturn(java.util.Optional.of(existing));
+        when(transactionRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(transactionRepository.save(any(TransactionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TransactionResponse response = transactionService.update(1L, request);
@@ -156,7 +160,7 @@ class TransactionServiceImplTest {
         request.setAmount(new BigDecimal("2000.00"));
 
         when(sessionService.getCurrentUser()).thenReturn(currentUser);
-        when(transactionRepository.findById(1L)).thenReturn(java.util.Optional.of(existing));
+        when(transactionRepository.findById(1L)).thenReturn(Optional.of(existing));
 
         assertThrows(ForbiddenException.class, () -> transactionService.update(1L, request));
     }
@@ -171,7 +175,7 @@ class TransactionServiceImplTest {
         existing.setUser(otherUser);
 
         when(sessionService.getCurrentUser()).thenReturn(currentUser);
-        when(transactionRepository.findById(1L)).thenReturn(java.util.Optional.of(existing));
+        when(transactionRepository.findById(1L)).thenReturn(Optional.of(existing));
 
         assertThrows(ForbiddenException.class, () -> transactionService.delete(1L));
     }
@@ -179,8 +183,81 @@ class TransactionServiceImplTest {
     @Test
     void delete_shouldThrowWhenMissing() {
         when(sessionService.getCurrentUser()).thenReturn(currentUser);
-        when(transactionRepository.findById(1L)).thenReturn(java.util.Optional.empty());
+        when(transactionRepository.findById(1L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> transactionService.delete(1L));
+    }
+
+    @Test
+    void create_shouldThrowWhenDateInFuture() {
+        CreateTransactionRequest request = new CreateTransactionRequest();
+        request.setAmount(new BigDecimal("1000"));
+        request.setDate(LocalDate.now().plusDays(1));
+        request.setCategory("Salary");
+
+        when(sessionService.getCurrentUser()).thenReturn(currentUser);
+
+        assertThrows(BadRequestException.class,
+                () -> transactionService.create(request));
+    }
+
+    @Test
+    void create_shouldThrowWhenCategoryMissing() {
+        CreateTransactionRequest request = new CreateTransactionRequest();
+        request.setAmount(new BigDecimal("1000"));
+        request.setDate(LocalDate.now());
+        request.setCategory("Invalid");
+
+        when(sessionService.getCurrentUser()).thenReturn(currentUser);
+
+        when(categoryRepository.findAccessibleCategoryByName("Invalid", currentUser))
+                .thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> transactionService.create(request));
+    }
+
+    @Test
+    void update_shouldUpdateCategory() {
+        TransactionEntity existing = new TransactionEntity();
+        existing.setId(1L);
+        existing.setUser(currentUser);
+        existing.setCategory(foodCategory);
+        existing.setDate(LocalDate.now());
+
+        UpdateTransactionRequest request = new UpdateTransactionRequest();
+        request.setCategory("Salary");
+
+        when(sessionService.getCurrentUser()).thenReturn(currentUser);
+        when(transactionRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        when(categoryRepository.findAccessibleCategoryByName("Salary", currentUser))
+                .thenReturn(Optional.of(salaryCategory));
+
+        when(transactionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        TransactionResponse response = transactionService.update(1L, request);
+
+        assertEquals("Salary", response.getCategory());
+    }
+
+    @Test
+    void getAll_shouldThrowWhenCategoryNotAccessible() {
+        UserEntity otherUser = new UserEntity();
+        otherUser.setId(2L);
+
+        CategoryEntity otherCategory = new CategoryEntity();
+        otherCategory.setId(99L);
+        otherCategory.setName("Private");
+        otherCategory.setType(TransactionTypeEnum.EXPENSE);
+        otherCategory.setUser(otherUser);
+
+        when(sessionService.getCurrentUser()).thenReturn(currentUser);
+        when(categoryRepository.findById(anyLong())).thenReturn(Optional.of(otherCategory));
+
+        assertThrows(
+                ResourceNotFoundException.class,
+                () -> transactionService.getAll(null, null, 99L)
+        );
     }
 }

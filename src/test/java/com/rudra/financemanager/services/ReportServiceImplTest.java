@@ -6,6 +6,7 @@ import com.rudra.financemanager.entities.CategoryEntity;
 import com.rudra.financemanager.entities.TransactionEntity;
 import com.rudra.financemanager.entities.TransactionTypeEnum;
 import com.rudra.financemanager.entities.UserEntity;
+import com.rudra.financemanager.exceptions.BadRequestException;
 import com.rudra.financemanager.repositories.TransactionRepository;
 import com.rudra.financemanager.security.SessionService;
 import com.rudra.financemanager.services.impl.ReportServiceImpl;
@@ -15,9 +16,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 
 import java.math.BigDecimal;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneId;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -30,15 +28,13 @@ class ReportServiceImplTest {
     @Mock private TransactionRepository transactionRepository;
     @Mock private SessionService sessionService;
 
-    private Clock fixedClock;
     private ReportServiceImpl reportService;
-
     private UserEntity currentUser;
 
     @BeforeEach
     void setUp() {
-        fixedClock = Clock.fixed(Instant.parse("2025-01-01T00:00:00Z"), ZoneId.of("UTC"));
-        reportService = new ReportServiceImpl(transactionRepository, sessionService, fixedClock);
+        // Clock dependency removed as per the optimized service implementation
+        reportService = new ReportServiceImpl(transactionRepository, sessionService);
 
         currentUser = new UserEntity();
         currentUser.setId(1L);
@@ -66,7 +62,13 @@ class ReportServiceImplTest {
         t2.setCategory(food);
 
         when(sessionService.getCurrentUser()).thenReturn(currentUser);
-        when(transactionRepository.findByUserOrderByDateDesc(currentUser)).thenReturn(List.of(t1, t2));
+
+        when(transactionRepository.findAllWithFilters(
+                eq(currentUser),
+                eq(LocalDate.of(2024, 1, 1)),
+                eq(LocalDate.of(2024, 1, 31)),
+                isNull()
+        )).thenReturn(List.of(t1, t2));
 
         MonthlyReportResponse response = reportService.getMonthlyReport(2024, 1);
 
@@ -98,7 +100,13 @@ class ReportServiceImplTest {
         t2.setCategory(rent);
 
         when(sessionService.getCurrentUser()).thenReturn(currentUser);
-        when(transactionRepository.findByUserOrderByDateDesc(currentUser)).thenReturn(List.of(t1, t2));
+
+        when(transactionRepository.findAllWithFilters(
+                eq(currentUser),
+                eq(LocalDate.of(2024, 1, 1)),
+                eq(LocalDate.of(2024, 12, 31)),
+                isNull()
+        )).thenReturn(List.of(t1, t2));
 
         YearlyReportResponse response = reportService.getYearlyReport(2024);
 
@@ -106,5 +114,30 @@ class ReportServiceImplTest {
         assertEquals(new BigDecimal("5000.00"), response.getTotalIncome().get("Salary"));
         assertEquals(new BigDecimal("1000.00"), response.getTotalExpenses().get("Rent"));
         assertEquals(new BigDecimal("4000.00"), response.getNetSavings());
+    }
+
+    @Test
+    void getMonthlyReport_shouldThrowForInvalidMonth() {
+        assertThrows(BadRequestException.class,
+                () -> reportService.getMonthlyReport(2024, 13));
+    }
+
+    @Test
+    void getMonthlyReport_shouldReturnEmptyWhenNoTransactions() {
+        when(sessionService.getCurrentUser()).thenReturn(currentUser);
+
+        // Updated mock to reflect the new repository call returning an empty list
+        when(transactionRepository.findAllWithFilters(
+                eq(currentUser),
+                eq(LocalDate.of(2024, 1, 1)),
+                eq(LocalDate.of(2024, 1, 31)),
+                isNull()
+        )).thenReturn(List.of());
+
+        MonthlyReportResponse response = reportService.getMonthlyReport(2024, 1);
+
+        assertTrue(response.getTotalIncome().isEmpty());
+        assertTrue(response.getTotalExpenses().isEmpty());
+        assertEquals(BigDecimal.ZERO, response.getNetSavings());
     }
 }

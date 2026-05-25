@@ -19,8 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -30,121 +30,111 @@ public class TransactionServiceImpl implements TransactionService {
     private final CategoryRepository categoryRepository;
     private final SessionService sessionService;
 
-
     @Override
     @Transactional
-    public TransactionResponse create(CreateTransactionRequest createTransactionRequest) {
-        UserEntity currentUser = sessionService.getCurrentUser();
-        CategoryEntity category =  findAccessibleCategoryByName(createTransactionRequest.getCategory(), currentUser);
+    public TransactionResponse create(final CreateTransactionRequest request) {
+        final UserEntity currentUser = sessionService.getCurrentUser();
 
-        if(createTransactionRequest.getDate() == null){
+        if (request.getDate() == null) {
             throw new BadRequestException("Date is required");
         }
-
-        if(createTransactionRequest.getDate().isAfter(LocalDate.now())){
+        if (request.getDate().isAfter(LocalDate.now())) {
             throw new BadRequestException("Date cannot be in the future");
         }
 
-        TransactionEntity transactionEntity = TransactionEntity.builder()
-                .amount(createTransactionRequest.getAmount())
-                .date(createTransactionRequest.getDate())
-                .description(createTransactionRequest.getDescription())
-                .category(category)
-                .user(currentUser).build();
+        final CategoryEntity category = findAccessibleCategoryByName(request.getCategory(), currentUser);
 
-        TransactionEntity savedTransactionEntity = transactionRepository.save(transactionEntity);
-        return toResponse(savedTransactionEntity);
+        final TransactionEntity transactionEntity = TransactionEntity.builder()
+                .amount(request.getAmount())
+                .date(request.getDate())
+                .description(request.getDescription())
+                .category(category)
+                .user(currentUser)
+                .build();
+
+        return toResponse(transactionRepository.save(transactionEntity));
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<TransactionResponse> getAll(LocalDate startDate, LocalDate endDate, Long categoryId) {
-        UserEntity currentUser = sessionService.getCurrentUser();
+    public List<TransactionResponse> getAll(final LocalDate startDate, final LocalDate endDate, final Long categoryId) {
+        final UserEntity currentUser = sessionService.getCurrentUser();
 
-        CategoryEntity filterCategory;
+        CategoryEntity filterCategory = null;
         if (categoryId != null) {
             filterCategory = categoryRepository.findById(categoryId)
                     .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
 
-            if(!isAccessibleCategory(filterCategory, currentUser)){
+            if (!isAccessibleCategory(filterCategory, currentUser)) {
                 throw new ResourceNotFoundException("Category not found");
             }
-        } else {
-            filterCategory = null;
         }
 
-        return transactionRepository.findByUserOrderByDateDesc(currentUser)
+        final Long targetCategoryId = filterCategory != null ? filterCategory.getId() : null;
+
+        return transactionRepository.findAllWithFilters(currentUser, startDate, endDate, targetCategoryId)
                 .stream()
-                .filter(tx -> startDate == null || !tx.getDate().isBefore(startDate))
-                .filter(tx -> endDate == null || !tx.getDate().isAfter(endDate))
-                .filter(tx -> filterCategory == null || tx.getCategory().getId().equals(filterCategory.getId()))
-                .sorted(Comparator.comparing(TransactionEntity::getDate).reversed()
-                        .thenComparing(TransactionEntity::getId, Comparator.reverseOrder()))
                 .map(this::toResponse)
                 .toList();
-
     }
 
     @Override
-    public TransactionResponse update(Long id, UpdateTransactionRequest updateTransactionRequest) {
-        UserEntity currentUser = sessionService.getCurrentUser();
+    @Transactional
+    public TransactionResponse update(final Long id, final UpdateTransactionRequest request) {
+        final UserEntity currentUser = sessionService.getCurrentUser();
+        final TransactionEntity transaction = getOwnedTransaction(id, currentUser);
 
-        TransactionEntity transaction = transactionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
-
-        if (!transaction.getUser().getId().equals(currentUser.getId())) {
-            throw new ForbiddenException("Access denied to this transaction");
+        if (request.getAmount() != null) {
+            transaction.setAmount(request.getAmount());
         }
 
-        if (updateTransactionRequest.getAmount() != null) {
-            transaction.setAmount(updateTransactionRequest.getAmount());
+        if (request.getDescription() != null) {
+            transaction.setDescription(request.getDescription());
         }
 
-        if (updateTransactionRequest.getDescription() != null) {
-            transaction.setDescription(updateTransactionRequest.getDescription());
-        }
-
-        if (updateTransactionRequest.getCategory() != null && !updateTransactionRequest.getCategory().isBlank()) {
-            CategoryEntity newCategory = findAccessibleCategoryByName(updateTransactionRequest.getCategory(), currentUser);
+        if (request.getCategory() != null && !request.getCategory().isBlank()) {
+            final CategoryEntity newCategory = findAccessibleCategoryByName(request.getCategory(), currentUser);
             transaction.setCategory(newCategory);
         }
 
-        TransactionEntity savedTransaction = transactionRepository.save(transaction);
-        return toResponse(savedTransaction);
+        return toResponse(transactionRepository.save(transaction));
     }
 
     @Override
-    public void delete(Long id) {
-        UserEntity currentUser = sessionService.getCurrentUser();
-
-        TransactionEntity transaction = transactionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
-
-        if (!transaction.getUser().getId().equals(currentUser.getId())) {
-            throw new ForbiddenException("Access denied to this transaction");
-        }
+    @Transactional
+    public void delete(final Long id) {
+        final UserEntity currentUser = sessionService.getCurrentUser();
+        final TransactionEntity transaction = getOwnedTransaction(id, currentUser);
 
         transactionRepository.delete(transaction);
     }
 
-    private CategoryEntity findAccessibleCategoryByName(String categoryName, UserEntity currentUser) {
-        if(categoryName == null || categoryName.isBlank()){
+    private TransactionEntity getOwnedTransaction(final Long id, final UserEntity currentUser) {
+        final TransactionEntity transaction = transactionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
+
+        if (!transaction.getUser().getId().equals(currentUser.getId())) {
+            throw new ForbiddenException("Access denied to this transaction");
+        }
+
+        return transaction;
+    }
+
+    private CategoryEntity findAccessibleCategoryByName(final String categoryName, final UserEntity currentUser) {
+        if (categoryName == null || categoryName.isBlank()) {
             throw new BadRequestException("Category name is required");
         }
 
-        return categoryRepository.findByUserIsNull().stream()
-                .filter(c -> c.getName().equalsIgnoreCase(categoryName))
-                .findFirst().orElseGet(() -> categoryRepository.findByUser(currentUser).stream()
-                        .filter(c-> c.getName().equalsIgnoreCase(categoryName))
-                        .findFirst().orElseThrow(() -> new ResourceNotFoundException("Category not found")));
+        return categoryRepository.findAccessibleCategoryByName(categoryName.trim(), currentUser)
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found: " + categoryName));
     }
 
-    private boolean isAccessibleCategory(CategoryEntity category, UserEntity currentUser) {
+    private boolean isAccessibleCategory(final CategoryEntity category, final UserEntity currentUser) {
         return category.getUser() == null || category.getUser().getId().equals(currentUser.getId());
     }
 
-    private TransactionResponse toResponse(TransactionEntity transaction) {
-        TransactionTypeEnum type = transaction.getCategory().getType() == TransactionTypeEnum.INCOME
+    private TransactionResponse toResponse(final TransactionEntity transaction) {
+        final TransactionTypeEnum type = transaction.getCategory().getType() == TransactionTypeEnum.INCOME
                 ? TransactionTypeEnum.INCOME
                 : TransactionTypeEnum.EXPENSE;
 

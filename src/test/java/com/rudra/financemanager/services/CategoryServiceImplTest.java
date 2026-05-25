@@ -7,6 +7,7 @@ import com.rudra.financemanager.entities.TransactionTypeEnum;
 import com.rudra.financemanager.entities.UserEntity;
 import com.rudra.financemanager.exceptions.BadRequestException;
 import com.rudra.financemanager.exceptions.ConflictException;
+import com.rudra.financemanager.exceptions.ResourceNotFoundException;
 import com.rudra.financemanager.repositories.CategoryRepository;
 import com.rudra.financemanager.repositories.TransactionRepository;
 import com.rudra.financemanager.security.SessionService;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -58,8 +60,9 @@ class CategoryServiceImplTest {
     @Test
     void getAll_shouldReturnDefaultAndUserCategories() {
         when(sessionService.getCurrentUser()).thenReturn(currentUser);
-        when(categoryRepository.findByUserIsNull()).thenReturn(List.of(salaryCategory));
-        when(categoryRepository.findByUser(currentUser)).thenReturn(List.of(customCategory));
+
+        when(categoryRepository.findAllAccessibleCategories(currentUser))
+                .thenReturn(List.of(salaryCategory, customCategory));
 
         List<CategoryResponse> result = categoryService.getAll();
 
@@ -73,8 +76,9 @@ class CategoryServiceImplTest {
         request.setType(TransactionTypeEnum.EXPENSE);
 
         when(sessionService.getCurrentUser()).thenReturn(currentUser);
-        when(categoryRepository.findByUserIsNull()).thenReturn(List.of(salaryCategory));
-        when(categoryRepository.findByUser(currentUser)).thenReturn(List.of(customCategory));
+
+        when(categoryRepository.existsByAccessibleName("Travel", currentUser)).thenReturn(false);
+
         when(categoryRepository.save(any(CategoryEntity.class))).thenAnswer(invocation -> {
             CategoryEntity c = invocation.getArgument(0);
             c.setId(99L);
@@ -95,7 +99,8 @@ class CategoryServiceImplTest {
         request.setType(TransactionTypeEnum.INCOME);
 
         when(sessionService.getCurrentUser()).thenReturn(currentUser);
-        when(categoryRepository.findByUserIsNull()).thenReturn(List.of(salaryCategory));
+
+        when(categoryRepository.existsByAccessibleName("Salary", currentUser)).thenReturn(true);
 
         assertThrows(ConflictException.class, () -> categoryService.create(request));
     }
@@ -103,7 +108,9 @@ class CategoryServiceImplTest {
     @Test
     void deleteByName_shouldRejectDefaultCategory() {
         when(sessionService.getCurrentUser()).thenReturn(currentUser);
-        when(categoryRepository.findByUserIsNull()).thenReturn(List.of(salaryCategory));
+
+        when(categoryRepository.findAccessibleCategoryByName("Salary", currentUser))
+                .thenReturn(Optional.of(salaryCategory));
 
         assertThrows(BadRequestException.class, () -> categoryService.deleteByName("Salary"));
     }
@@ -111,8 +118,10 @@ class CategoryServiceImplTest {
     @Test
     void deleteByName_shouldDeleteCustomCategoryWhenUnused() {
         when(sessionService.getCurrentUser()).thenReturn(currentUser);
-        when(categoryRepository.findByUserIsNull()).thenReturn(List.of(salaryCategory));
-        when(categoryRepository.findByUser(currentUser)).thenReturn(List.of(customCategory));
+
+        when(categoryRepository.findAccessibleCategoryByName("SideIncome", currentUser))
+                .thenReturn(Optional.of(customCategory));
+
         when(transactionRepository.existsByCategory(customCategory)).thenReturn(false);
 
         categoryService.deleteByName("SideIncome");
@@ -123,10 +132,33 @@ class CategoryServiceImplTest {
     @Test
     void deleteByName_shouldThrowConflictWhenCategoryUsedByTransactions() {
         when(sessionService.getCurrentUser()).thenReturn(currentUser);
-        when(categoryRepository.findByUserIsNull()).thenReturn(List.of(salaryCategory));
-        when(categoryRepository.findByUser(currentUser)).thenReturn(List.of(customCategory));
+
+        when(categoryRepository.findAccessibleCategoryByName("SideIncome", currentUser))
+                .thenReturn(Optional.of(customCategory));
+
         when(transactionRepository.existsByCategory(customCategory)).thenReturn(true);
 
         assertThrows(ConflictException.class, () -> categoryService.deleteByName("SideIncome"));
+    }
+
+    @Test
+    void create_shouldThrowWhenNameBlank() {
+        CreateCategoryRequest request = new CreateCategoryRequest();
+        request.setName("");
+        request.setType(TransactionTypeEnum.EXPENSE);
+
+        when(sessionService.getCurrentUser()).thenReturn(currentUser);
+
+        assertThrows(BadRequestException.class, () -> categoryService.create(request));
+    }
+
+    @Test
+    void delete_shouldThrowWhenCategoryMissing() {
+        when(sessionService.getCurrentUser()).thenReturn(currentUser);
+
+        when(categoryRepository.findAccessibleCategoryByName("Missing", currentUser))
+                .thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> categoryService.deleteByName("Missing"));
     }
 }

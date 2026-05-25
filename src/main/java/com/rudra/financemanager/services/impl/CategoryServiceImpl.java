@@ -16,10 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -32,53 +29,49 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional(readOnly = true)
     public List<CategoryResponse> getAll() {
-        UserEntity currentUser = sessionService.getCurrentUser();
+        final UserEntity currentUser = sessionService.getCurrentUser();
 
-        List<CategoryEntity> categories = new ArrayList<>(categoryRepository.findByUserIsNull());
-        categories.addAll(categoryRepository.findByUser(currentUser));
-
-        return categories.stream()
-                .sorted(Comparator.comparing(CategoryEntity::getType).thenComparing(CategoryEntity::getName))
+        return categoryRepository.findAllAccessibleCategories(currentUser)
+                .stream()
                 .map(this::toResponse)
                 .toList();
     }
 
-
     @Override
     @Transactional
-    public CategoryResponse create(CreateCategoryRequest request) {
-        UserEntity currentUser = sessionService.getCurrentUser();
+    public CategoryResponse create(final CreateCategoryRequest request) {
+        final UserEntity currentUser = sessionService.getCurrentUser();
 
         if (request.getName() == null || request.getName().isBlank()) {
             throw new BadRequestException("Category name is required");
         }
 
-        boolean nameExists = categoryRepository.findByUserIsNull().stream()
-                .anyMatch(c -> c.getName().equalsIgnoreCase(request.getName()))
-                || categoryRepository.findByUser(currentUser).stream()
-                .anyMatch(c -> c.getName().equalsIgnoreCase(request.getName()));
+        final String trimmedName = request.getName().trim();
 
-        if (nameExists) {
+        if (categoryRepository.existsByAccessibleName(trimmedName, currentUser)) {
             throw new ConflictException("Category name already exists");
         }
 
-        CategoryEntity category = CategoryEntity.builder()
-                .name(request.getName())
+        final CategoryEntity category = CategoryEntity.builder()
+                .name(trimmedName)
                 .type(request.getType())
                 .isCustom(true)
                 .user(currentUser)
                 .build();
 
-        CategoryEntity saved = categoryRepository.save(category);
-        return toResponse(saved);
+        return toResponse(categoryRepository.save(category));
     }
 
     @Override
     @Transactional
-    public void deleteByName(String name) {
-        UserEntity currentUser = sessionService.getCurrentUser();
+    public void deleteByName(final String name) {
+        final UserEntity currentUser = sessionService.getCurrentUser();
 
-        CategoryEntity category = findAccessibleCategoryByName(name, currentUser)
+        if (name == null || name.isBlank()) {
+            throw new BadRequestException("Category name is required");
+        }
+
+        final CategoryEntity category = categoryRepository.findAccessibleCategoryByName(name.trim(), currentUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
 
         if (category.getUser() == null) {
@@ -96,25 +89,7 @@ public class CategoryServiceImpl implements CategoryService {
         categoryRepository.delete(category);
     }
 
-    private Optional<CategoryEntity> findAccessibleCategoryByName(String name, UserEntity currentUser) {
-        if (name == null || name.isBlank()) {
-            return Optional.empty();
-        }
-
-        Optional<CategoryEntity> defaultCategory = categoryRepository.findByUserIsNull().stream()
-                .filter(c -> c.getName().equalsIgnoreCase(name))
-                .findFirst();
-
-        if (defaultCategory.isPresent()) {
-            return defaultCategory;
-        }
-
-        return categoryRepository.findByUser(currentUser).stream()
-                .filter(c -> c.getName().equalsIgnoreCase(name))
-                .findFirst();
-    }
-
-    private CategoryResponse toResponse(CategoryEntity category) {
+    private CategoryResponse toResponse(final CategoryEntity category) {
         return new CategoryResponse(
                 category.getId(),
                 category.getName(),

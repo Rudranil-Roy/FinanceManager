@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface SavingsGoalRepository extends JpaRepository<SavingsGoalEntity, Long> {
 
-    List<SavingsGoalEntity> findByUserOrderByIdDesc(UserEntity user);
 
-    List<SavingsGoalEntity> findByUser(UserEntity user);
+
+    List<SavingsGoalEntity> findByUserOrderByIdDesc(UserEntity user);
 }

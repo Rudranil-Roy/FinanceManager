@@ -1,9 +1,10 @@
 package com.rudra.financemanager.repositories;
 
 import com.rudra.financemanager.entities.CategoryEntity;
-import com.rudra.financemanager.entities.TransactionTypeEnum;
 import com.rudra.financemanager.entities.UserEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -14,19 +15,15 @@ public interface CategoryRepository extends JpaRepository<CategoryEntity, Long> 
 
     List<CategoryEntity> findByUser(UserEntity user);
 
-    List<CategoryEntity> findByUserOrUserIsNull(UserEntity user, UserEntity nullUser);
+    @Query("SELECT c FROM CategoryEntity c WHERE c.user IS NULL OR c.user = :user ORDER BY c.type ASC, c.name ASC")
+    List<CategoryEntity> findAllAccessibleCategories(@Param("user") UserEntity user);
 
-    Optional<CategoryEntity> findByNameAndUser(String name, UserEntity user);
+    @Query("SELECT CASE WHEN COUNT(c) > 0 THEN true ELSE false END FROM CategoryEntity c " +
+            "WHERE LOWER(c.name) = LOWER(:name) AND (c.user IS NULL OR c.user = :user)")
+    boolean existsByAccessibleName(@Param("name") String name, @Param("user") UserEntity user);
 
-    Optional<CategoryEntity> findByNameAndUserIsNull(String name);
-
-    boolean existsByNameAndUser(String name, UserEntity user);
-
-    boolean existsByNameAndUserIsNull(String name);
-
-    boolean existsByNameAndUserOrUserIsNull(String name, UserEntity user, UserEntity nullUser);
-
-    List<CategoryEntity> findByTypeAndUserOrTypeAndUserIsNull(TransactionTypeEnum type1, UserEntity user, TransactionTypeEnum type2, UserEntity nullUser);
-
+    @Query("SELECT c FROM CategoryEntity c WHERE LOWER(c.name) = LOWER(:name) AND (c.user IS NULL OR c.user = :user)")
+    Optional<CategoryEntity> findAccessibleCategoryByName(@Param("name") String name, @Param("user") UserEntity user);
 }
+
 

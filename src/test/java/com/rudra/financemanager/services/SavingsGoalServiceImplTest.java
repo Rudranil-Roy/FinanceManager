@@ -4,6 +4,7 @@ import com.rudra.financemanager.dto.goal.CreateGoalRequest;
 import com.rudra.financemanager.dto.goal.GoalResponse;
 import com.rudra.financemanager.dto.goal.UpdateGoalRequest;
 import com.rudra.financemanager.entities.*;
+import com.rudra.financemanager.exceptions.BadRequestException;
 import com.rudra.financemanager.exceptions.ForbiddenException;
 import com.rudra.financemanager.repositories.SavingsGoalRepository;
 import com.rudra.financemanager.repositories.TransactionRepository;
@@ -20,6 +21,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -84,7 +86,8 @@ class SavingsGoalServiceImplTest {
     @Test
     void getAll_shouldReturnGoals() {
         when(sessionService.getCurrentUser()).thenReturn(currentUser);
-        when(savingsGoalRepository.findByUser(currentUser)).thenReturn(List.of(goal));
+
+        when(savingsGoalRepository.findByUserOrderByIdDesc(currentUser)).thenReturn(List.of(goal));
 
         SavingsGoalServiceImpl service = new SavingsGoalServiceImpl(
                 savingsGoalRepository, transactionRepository, sessionService, fixedClock
@@ -149,27 +152,12 @@ class SavingsGoalServiceImplTest {
 
     @Test
     void progressCalculation_shouldConsiderIncomeMinusExpenses() {
-        CategoryEntity income = new CategoryEntity();
-        income.setType(TransactionTypeEnum.INCOME);
-        income.setName("Salary");
-
-        CategoryEntity expense = new CategoryEntity();
-        expense.setType(TransactionTypeEnum.EXPENSE);
-        expense.setName("Food");
-
-        TransactionEntity t1 = new TransactionEntity();
-        t1.setAmount(new BigDecimal("3000.00"));
-        t1.setCategory(income);
-
-        TransactionEntity t2 = new TransactionEntity();
-        t2.setAmount(new BigDecimal("500.00"));
-        t2.setCategory(expense);
-
         when(sessionService.getCurrentUser()).thenReturn(currentUser);
         when(savingsGoalRepository.findById(1L)).thenReturn(java.util.Optional.of(goal));
-        when(transactionRepository.findByUserAndDateGreaterThanEqualAndDateLessThanEqualOrderByDateDesc(
+
+        when(transactionRepository.calculateNetSavingsForPeriod(
                 eq(currentUser), eq(LocalDate.of(2025, 1, 1)), eq(LocalDate.of(2025, 1, 1))
-        )).thenReturn(List.of(t1, t2));
+        )).thenReturn(new BigDecimal("2500.00"));
 
         SavingsGoalServiceImpl service = new SavingsGoalServiceImpl(
                 savingsGoalRepository, transactionRepository, sessionService, fixedClock
@@ -180,5 +168,74 @@ class SavingsGoalServiceImplTest {
         assertEquals(new BigDecimal("2500.00"), response.getCurrentProgress());
         assertEquals(new BigDecimal("50.00"), response.getProgressPercentage());
         assertEquals(new BigDecimal("2500.00"), response.getRemainingAmount());
+    }
+
+    @Test
+    void create_shouldThrowWhenStartDateFuture() {
+
+        CreateGoalRequest request = new CreateGoalRequest();
+        request.setGoalName("Emergency");
+        request.setTargetAmount(new BigDecimal("5000"));
+        request.setTargetDate(LocalDate.of(2026,1,1));
+        request.setStartDate(LocalDate.of(2025,1,2));
+
+        when(sessionService.getCurrentUser()).thenReturn(currentUser);
+
+        SavingsGoalServiceImpl service =
+                new SavingsGoalServiceImpl(
+                        savingsGoalRepository,
+                        transactionRepository,
+                        sessionService,
+                        fixedClock
+                );
+
+        assertThrows(BadRequestException.class,
+                () -> service.create(request));
+    }
+
+    @Test
+    void create_shouldThrowWhenTargetDateNotFuture() {
+
+        CreateGoalRequest request = new CreateGoalRequest();
+        request.setGoalName("Emergency");
+        request.setTargetAmount(new BigDecimal("5000"));
+        request.setTargetDate(LocalDate.of(2025,1,1));
+
+        when(sessionService.getCurrentUser()).thenReturn(currentUser);
+
+        SavingsGoalServiceImpl service =
+                new SavingsGoalServiceImpl(
+                        savingsGoalRepository,
+                        transactionRepository,
+                        sessionService,
+                        fixedClock
+                );
+
+        assertThrows(BadRequestException.class,
+                () -> service.create(request));
+    }
+
+    @Test
+    void progress_shouldHandleNegativeProgress() {
+        when(sessionService.getCurrentUser()).thenReturn(currentUser);
+        when(savingsGoalRepository.findById(1L)).thenReturn(Optional.of(goal));
+
+        when(transactionRepository.calculateNetSavingsForPeriod(
+                eq(currentUser), eq(LocalDate.of(2025, 1, 1)), eq(LocalDate.of(2025, 1, 1))
+        )).thenReturn(new BigDecimal("-3000.00"));
+
+        SavingsGoalServiceImpl service =
+                new SavingsGoalServiceImpl(
+                        savingsGoalRepository,
+                        transactionRepository,
+                        sessionService,
+                        fixedClock
+                );
+
+        GoalResponse response = service.getById(1L);
+
+        assertEquals(new BigDecimal("-3000.00"), response.getCurrentProgress());
+        assertEquals(new BigDecimal("0.00"), response.getProgressPercentage());
+        assertEquals(new BigDecimal("5000.00"), response.getRemainingAmount());
     }
 }
