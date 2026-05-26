@@ -40,6 +40,23 @@ mvn spring-boot:run
 ```
 The server will start on `http://localhost:8080`.
 
+### 🐳 Docker Support
+You can also package and run the application in a Docker container using the provided `Dockerfile`:
+
+1. **Build the JAR file**:
+   ```bash
+   ./mvnw clean package -DskipTests
+   ```
+2. **Build the Docker Image**:
+   ```bash
+   docker build -t finance-manager .
+   ```
+3. **Run the Docker Container**:
+   ```bash
+   docker run -p 8080:8080 -e SECURE_COOKIES=false finance-manager
+   ```
+   The application will be accessible at `http://localhost:8080`.
+
 ---
 
 ## 🧪 Testing

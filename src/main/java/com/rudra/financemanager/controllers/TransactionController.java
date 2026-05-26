@@ -41,15 +41,17 @@ public class TransactionController {
      * @param startDate  Optional filter to show transactions on or after this date.
      * @param endDate    Optional filter to show transactions on or before this date.
      * @param categoryId Optional filter to show transactions belonging to a specific category ID.
+     * @param category   Optional filter to show transactions belonging to a specific category name.
      * @return ResponseEntity containing a list of matching transactions.
      */
     @GetMapping
     public ResponseEntity<List<TransactionResponse>> getAll(
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate,
-            @RequestParam(required = false) Long categoryId
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) String category
     ) {
-        List<TransactionResponse> response = transactionService.getAll(startDate, endDate, categoryId);
+        List<TransactionResponse> response = transactionService.getAll(startDate, endDate, categoryId, category);
         return ResponseEntity.ok(response);
     }
 

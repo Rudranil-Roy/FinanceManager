@@ -74,12 +74,13 @@ public class TransactionServiceImpl implements TransactionService {
      * @param startDate  Optional filter for transaction date (on or after).
      * @param endDate    Optional filter for transaction date (on or before).
      * @param categoryId Optional filter for a specific category ID.
-     * @return List of matching TransactionResponse DTOs.
-     * @throws ResourceNotFoundException if a specified category ID is not found or is inaccessible.
+     * @param category   Optional filter for a specific category name.
+     * @return List of TransactionResponse DTOs.
+     * @throws ResourceNotFoundException if a specified category ID or name is not found or is inaccessible.
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TransactionResponse> getAll(final LocalDate startDate, final LocalDate endDate, final Long categoryId) {
+    public List<TransactionResponse> getAll(final LocalDate startDate, final LocalDate endDate, final Long categoryId, final String category) {
         final UserEntity currentUser = sessionService.getCurrentUser();
 
         CategoryEntity filterCategory = null;
@@ -90,6 +91,9 @@ public class TransactionServiceImpl implements TransactionService {
             if (!isAccessibleCategory(filterCategory, currentUser)) {
                 throw new ResourceNotFoundException("Category not found");
             }
+        } else if (category != null && !category.isBlank()) {
+            filterCategory = categoryRepository.findAccessibleCategoryByName(category.trim(), currentUser)
+                    .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
         }
 
         final Long targetCategoryId = filterCategory != null ? filterCategory.getId() : null;

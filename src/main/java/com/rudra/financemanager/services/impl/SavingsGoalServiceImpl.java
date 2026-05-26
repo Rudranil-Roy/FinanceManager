@@ -197,14 +197,26 @@ public class SavingsGoalServiceImpl implements SavingsGoalService {
                     .setScale(2, RoundingMode.HALF_UP);
         }
 
+        BigDecimal formattedProgress;
+        if (currentProgress.compareTo(BigDecimal.ZERO) == 0) {
+            formattedProgress = BigDecimal.ZERO;
+        } else {
+            formattedProgress = currentProgress.setScale(2, RoundingMode.HALF_UP);
+        }
+
+        BigDecimal formattedPercentage = progressPercentage.stripTrailingZeros();
+        if (formattedPercentage.scale() <= 0) {
+            formattedPercentage = formattedPercentage.setScale(1, RoundingMode.HALF_UP);
+        }
+
         return new GoalResponse(
                 goal.getId(),
                 goal.getGoalName(),
                 goal.getTargetAmount(),
                 goal.getTargetDate(),
                 goal.getStartDate(),
-                currentProgress.setScale(2, RoundingMode.HALF_UP),
-                progressPercentage,
+                formattedProgress,
+                formattedPercentage,
                 remainingAmount.setScale(2, RoundingMode.HALF_UP)
         );
     }

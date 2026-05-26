@@ -26,7 +26,3 @@ server:
         secure: ${SECURE_COOKIES:false}
         http-only: true
         same-site: strict
-
-app:
-  cors:
-    allowed-origins: ${FRONTEND_URL:http://localhost:5173}

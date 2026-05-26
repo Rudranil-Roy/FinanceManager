@@ -65,7 +65,7 @@ class TransactionControllerTest {
 
     @Test
     void getAll_shouldReturn200() throws Exception {
-        when(transactionService.getAll(null, null, null)).thenReturn(List.of(
+        when(transactionService.getAll(null, null, null, null)).thenReturn(List.of(
                 new TransactionResponse(
                         1L,
                         new BigDecimal("50000.00"),

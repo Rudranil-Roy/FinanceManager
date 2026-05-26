@@ -113,7 +113,8 @@ class TransactionServiceImplTest {
         var result = transactionService.getAll(
                 LocalDate.of(2024, 1, 1),
                 LocalDate.of(2024, 1, 31),
-                10L
+                10L,
+                null
         );
 
         assertEquals(1, result.size());
@@ -257,7 +258,7 @@ class TransactionServiceImplTest {
 
         assertThrows(
                 ResourceNotFoundException.class,
-                () -> transactionService.getAll(null, null, 99L)
+                () -> transactionService.getAll(null, null, 99L, null)
         );
     }
 }

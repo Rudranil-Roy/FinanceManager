@@ -166,7 +166,7 @@ class SavingsGoalServiceImplTest {
         GoalResponse response = service.getById(1L);
 
         assertEquals(new BigDecimal("2500.00"), response.getCurrentProgress());
-        assertEquals(new BigDecimal("50.00"), response.getProgressPercentage());
+        assertEquals(new BigDecimal("50.0"), response.getProgressPercentage());
         assertEquals(new BigDecimal("2500.00"), response.getRemainingAmount());
     }
 
@@ -235,7 +235,7 @@ class SavingsGoalServiceImplTest {
         GoalResponse response = service.getById(1L);
 
         assertEquals(new BigDecimal("-3000.00"), response.getCurrentProgress());
-        assertEquals(new BigDecimal("0.00"), response.getProgressPercentage());
+        assertEquals(new BigDecimal("0.0"), response.getProgressPercentage());
         assertEquals(new BigDecimal("5000.00"), response.getRemainingAmount());
     }
 }

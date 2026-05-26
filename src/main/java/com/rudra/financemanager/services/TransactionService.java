@@ -26,9 +26,10 @@ public interface TransactionService {
      * @param startDate  Optional filter to show transactions on or after this date.
      * @param endDate    Optional filter to show transactions on or before this date.
      * @param categoryId Optional filter to show transactions matching this category ID.
+     * @param category   Optional filter to show transactions matching this category name.
      * @return List of TransactionResponse DTOs.
      */
-    List<TransactionResponse> getAll(LocalDate startDate, LocalDate endDate, Long categoryId);
+    List<TransactionResponse> getAll(LocalDate startDate, LocalDate endDate, Long categoryId, String category);
 
     /**
      * Updates an existing transaction's amount, description, and/or category.
